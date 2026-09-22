@@ -1,61 +1,147 @@
 import regex as re 
-
+import sqlite3 as sql
 
 
 class Extracting:
 
+
+    
+
+
     def __init__(self, name):
         self.name = name
         with open(name, 'r') as f:
-            self.data = f.read()    
+            self.data = f.read()
+
+        conn = sql.connect(f'{self.name}.db')
+        c = conn.cursor()
+        c.execute('''CREATE TABLE log_data
+                     IP TEXT,
+                     Day INTEGER,
+                     Month TEXT,
+                     Year ,
+                     Hour INTEGER,
+                     Minute INTEGER,
+                     Second INTEGER,
+                     Timezone TEXT,
+                     Method TEXT,
+                     Path TEXT,
+                     Protocol TEXT,
+                     Status INTEGER,
+                     Size INTEGER,
+                     Referrer TEXT)''')
 
 
-    def IPs(self) -> list[str]:
-        pattern = re.compile(r'\d+\.\d+\.\d+\.\d+')       
-        return pattern.findall(self.data)
+        lines = self.data.splitlines()
+        for line in lines:
+            self.line = line
+            c.execute(f"INSERT INTO log_data (IP) VALUES (?)",(self.IPs() if self.IPs() else None,))
+            c.execute('''UPDATE log_data SET Day = ? WHERE IP = ?''', (self.Day() if self.Day() else None, self.IPs() if self.IPs() else None))
+            self.Day()
+            self.Month()
+            self.Year()
+            self.Time()
+            self.Timezone()
+            self.Re()
+            self.Request()
+            self.SZ()
+            self.Referrer()
 
-    def Day(self) -> list[str]:
-        pattern = re.compile(r'(?<=\[)(\d{2})(?=/)')
-        
-        return pattern.findall(self.data)
+    self.PIP = re.compile(r'\d+\.\d+\.\d+\.\d+')
+    self.PDay = re.compile(r'(?<=\[)(\d{2})(?=/)')
+    self.PMonth = re.compile(r'(?<=\[\d{2}/)([A-Za-z]{3})(?=/)')
+    self.PYear = re.compile(r'(?<=\[\d{2}/[A-Za-z]{3}/)(\d{4})(?=:)')
+    self.PTime = re.compile(r'(?<=\d{4}:)(\d{2}):(\d{2}):(\d{2})(?=\s)')
+    self.PTimezone = re.compile(r'(?<=:\d{2}:\d{2}:\d{2}\s)([+-]\d{4})(?=\])')
+    self.PReferrer = re.compile(r'(?<="\s\d{3}\s\d+\s")(.+)(?="\s")')
 
-    def Month(self) -> list[str]:
-        #pattern = re.compile(r'(?<=\[)(\d{2})/([A-Za-z]{3})(?=/)')
-        pattern = re.compile(r'(?<=\[\d{2}/)([A-Za-z]{3})(?=/)')
-        return pattern.findall(self.data)
+    def IPs(self) -> str:
+        M = re.search(self.PIP, self.line)
+        if(M):
+            return M.group(1)
+        else:
+            return(None)
 
-    def Year(self) -> list[str]:
-        pattern = re.compile(r'(?<=\[\d{2}/[A-Za-z]{3}/)(\d{4})(?=:)')
-        return pattern.findall(self.data)
+    def Day(self) -> str:
+        M = re.search(self.PDay, self.line)
 
-    def Time(self) -> list[tuple[str , str , str]]:
-        pattern = re.compile(r'(?<=\d{4}:)(\d{2}):(\d{2}):(\d{2})(?=\s)')
-        return pattern.findall(self.data)
+        if(M):
+            return M.group(1)
+        else:
+            return(None)
 
-    def Timezone(self) -> list[str]:
-        pattern = re.compile(r'(?<=:\d{2}:\d{2}:\d{2}\s)([+-]\d{4})(?=\])')
-        return pattern.findall(self.data)
+    def Month(self) -> str:
+        M = re.search(self.PMonth, self.line)
 
-    def Re(self) -> list[str]:
+        if(M):
+            return M.group(1)
+        else:
+            return(None)
+
+    def Year(self) -> str:
+        M = re.search(self.PYear, self.line)
+
+        if(M):
+            return M.group(1)
+        else:
+            return(None)
+
+    def Time(self) -> tuple[str , str , str]:
+        M = re.search(self.PTime, self.line)
+
+        if(M):
+            return (M.group(1), M.group(2), M.group(3))
+        else:
+            return(None)
+
+
+    def Timezone(self) -> str:
+        M = re.search(self.PTimezone, self.line)
+
+        if(M):
+            return M.group(1)
+        else:
+            return(None)
+
+    def Re(self) -> str:
         pattern = re.compile(r'(?<=]\s")(.+)(?="\s\d{3})')
-        return pattern.findall(self.data)
+        M = re.search(pattern, self.line)
 
-    def Request(self) -> list[tuple[str , str , str]]:
-        output: list[tuple[str , str , str]] = []
+        if(M):
+            return M.group(1)
+        else:
+            return(False)
 
-        for line in self.Re():
+    def Request(self) -> tuple[str , str , str]:
+        if(self.Re()):
+            line = self.Re()
             method = re.search(r'^(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)', line)
             path = re.search(r'(?<=GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s(/\S+)(?=\s)', line)
-            protocol = re.search(r'(?<=HTTP/)(\d+\.\d+)', line)
-            
-            if(method and path and protocol):
-                i = (method.group(1) , path.group(1) , protocol.group(1))
-                output.append(i)
-            else:
-                i = (" " , " " , " ")
-                output.append(i)
+            protocol = re.search(r'(HTTP/\d+\.\d+)', line)
+                
+            return (
+            method.group(1) if method else method,
+            path.group(1) if path else path,
+            protocol.group(1) if protocol else protocol)
+
+        else:
+            return(None)
+
+    def SZ(self) -> tuple[str , str]: #status and size
+        M = re.search(self.PSZ, self.line)
+
+        if(M):
+            return (M.group(1), M.group(2))
+        else:
+            return(None)
     
-        return output
+    def Referrer(self) -> str:
+        M = re.search(self.PReferrer, self.line)
+
+        if(M):
+            return M.group(1)
+        else:
+            return(None)
 
         
 
@@ -63,5 +149,5 @@ class Extracting:
 va = Extracting("access.log")
 va.Timezone()
 va.Time()
-va.Request()     
-# print(path)
+va.Referrer()     
+print(va.Referrer() )
